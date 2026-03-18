@@ -84,7 +84,7 @@ function buildChartData(data: DataPoint[], forecast: DataPoint[]): ChartPoint[] 
     const actualPoints: ChartPoint[] = data.map(d => {
         const point: ChartPoint = { date: d.date, ...nullF }
         for (const [key, period] of Object.entries(ROI_PERIOD_DAYS)) {
-            const raw = (d as Record<string, number>)[key]
+            const raw = (d as unknown as Record<string, number>)[key]
             point[key] = clamp(raw)
             // raw === 0 일 때만 원인 메타데이터 저장 (진짜 0 vs 날짜 부족)
             if (raw === 0) {
