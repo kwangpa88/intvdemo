@@ -56,25 +56,43 @@ type ChartPoint = Record<string, number | null | string>
 
 const clamp = (v: number | null | undefined) => Math.max(0.01, v ?? 0.01)
 
+// ROI 지표별 통계 기간(일)
+const ROI_PERIOD_DAYS: Record<string, number> = {
+    day0_roi: 0, day1_roi: 1, day3_roi: 3, day7_roi: 7,
+    day14_roi: 14, day30_roi: 30, day60_roi: 60, day90_roi: 90,
+}
+
+/**
+ * 0% 원인 판별:
+ * 데이터 절단일(cutoffDate)과 해당 날짜 간격이 ROI 기간보다 짧으면 '日期不足', 아니면 '真实0%'
+ */
+function getZeroReason(date: string, cutoffDate: string, periodDays: number): 'insufficient' | 'real' {
+    if (periodDays === 0) return 'real'
+    const diffDays = (new Date(cutoffDate).getTime() - new Date(date).getTime()) / 86400000
+    return diffDays < periodDays ? 'insufficient' : 'real'
+}
+
 function buildChartData(data: DataPoint[], forecast: DataPoint[]): ChartPoint[] {
+    // 데이터의 마지막 날짜 = 절단일(cutoff)
+    const cutoffDate = data.length > 0 ? data[data.length - 1].date : ''
     const nullF = { f0: null, f1: null, f3: null, f7: null, f14: null, f30: null, f60: null, f90: null }
     const nullA = {
         day0_roi: null, day1_roi: null, day3_roi: null, day7_roi: null,
         day14_roi: null, day30_roi: null, day60_roi: null, day90_roi: null,
     }
 
-    const actualPoints: ChartPoint[] = data.map(d => ({
-        date: d.date,
-        day0_roi: clamp(d.day0_roi),
-        day1_roi: clamp(d.day1_roi),
-        day3_roi: clamp(d.day3_roi),
-        day7_roi: clamp(d.day7_roi),
-        day14_roi: clamp(d.day14_roi),
-        day30_roi: clamp(d.day30_roi),
-        day60_roi: clamp(d.day60_roi),
-        day90_roi: clamp(d.day90_roi),
-        ...nullF,
-    }))
+    const actualPoints: ChartPoint[] = data.map(d => {
+        const point: ChartPoint = { date: d.date, ...nullF }
+        for (const [key, period] of Object.entries(ROI_PERIOD_DAYS)) {
+            const raw = (d as Record<string, number>)[key]
+            point[key] = clamp(raw)
+            // raw === 0 일 때만 원인 메타데이터 저장 (진짜 0 vs 날짜 부족)
+            if (raw === 0) {
+                point[`${key}__zero`] = getZeroReason(d.date, cutoffDate, period)
+            }
+        }
+        return point
+    })
 
     // Bridge: last actual point carries first forecast values so lines connect
     if (actualPoints.length > 0 && forecast.length > 0) {
@@ -169,26 +187,40 @@ function RadioGroup({
 
 function CustomTooltip({ active, payload, label }: {
     active?: boolean
-    payload?: { dataKey: string; name: string; value: number; color: string }[]
+    payload?: { dataKey: string; name: string; value: number; color: string; payload: ChartPoint }[]
     label?: string
 }) {
     if (!active || !payload?.length) return null
-    const isForecast = payload.some(p => p.dataKey?.startsWith('f'))
-    const visible = payload.filter(p => p.value != null && p.value > 0.01)
+    const isForecast = payload.some(p => p.dataKey?.startsWith('f') && p.value != null)
+    // null 값 및 내부용 '_f_' 시리즈 숨김
+    const visible = payload.filter(p => p.value != null && !p.name.startsWith('_'))
 
     return (
-        <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-lg text-xs max-w-xs">
+        <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-lg text-xs max-w-[260px]">
             <p className="font-semibold text-gray-700 mb-2">
                 {label ? formatDate(label) : ''} {isForecast ? '(예측)' : ''}
             </p>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                {visible.map(p => (
-                    <div key={p.dataKey} className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-0.5 inline-block" style={{ backgroundColor: p.color }} />
-                        <span className="text-gray-500">{p.name}:</span>
-                        <span className="font-mono font-medium">{Number(p.value).toFixed(2)}%</span>
-                    </div>
-                ))}
+            <div className="flex flex-col gap-1">
+                {visible.map(p => {
+                    // __zero 메타데이터가 있는 경우 = 원래 0%였던 값
+                    const reason = p.payload?.[`${p.dataKey}__zero`] as 'insufficient' | 'real' | undefined
+                    const isZero = !!reason
+                    return (
+                        <div key={p.dataKey} className="flex items-center gap-1.5 flex-wrap">
+                            <span className="w-2.5 h-0.5 inline-block shrink-0" style={{ backgroundColor: p.color }} />
+                            <span className="text-gray-500 shrink-0">{p.name}:</span>
+                            <span className="font-mono font-medium">
+                                {isZero ? '0%' : `${Number(p.value).toFixed(2)}%`}
+                            </span>
+                            {isZero && reason === 'insufficient' && (
+                                <span className="text-amber-500 font-normal">(日期不足)</span>
+                            )}
+                            {isZero && reason === 'real' && (
+                                <span className="text-red-400 font-normal">(真实0%)</span>
+                            )}
+                        </div>
+                    )
+                })}
             </div>
         </div>
     )
