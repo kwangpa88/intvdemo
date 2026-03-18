@@ -6,7 +6,7 @@
 
 ## dev
 ```
-cd frontend
+cd backend
 npm install
 npm run dev
 
@@ -15,7 +15,7 @@ npm run dev
 ## production
 
 ```
-cd frontend
+cd backend
 npm run build
 npm run start
 
