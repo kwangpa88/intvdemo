@@ -1,5 +1,5 @@
-import HelloWorldPage from './helloworld/page'
+import { redirect } from 'next/navigation'
 
 export default function Home() {
-    return <HelloWorldPage />
+    redirect('/dashboard')
 }
