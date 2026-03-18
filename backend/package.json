@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "scripts": {
         "dev": "ts-node-dev --respawn src/index.ts",
-        "build": "tsc",
+        "build": "tsc && node -e \"require('fs').copyFileSync('app_roi.db', 'dist/app_roi.db')\"",
         "start": "node dist/src/index.js",
         "import:csv": "ts-node csvimport/importCsv.ts"
     },
