@@ -23,4 +23,4 @@ npm run start
 
 ## more specific instructions
 
-see /document folder for more specific explanations and instructions, such as how to import data, how to reset database, etc.
+see [整体架构和guide](../document/) folder for more specific explanations and instructions, such as how to import data, how to reset database, etc.
